@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  DRIVER
+  ADMIN
+}
+
+enum RideStatus {
+  REQUESTED
+  ASSIGNED
+  PICKUP
+  ONTRIP
+  COMPLETED
+  CANCELLED
+}
+
+enum DocumentType {
+  INE
+  ACTA_NACIMIENTO
+  LICENCIA
+  COMPROBANTE_DOMICILIO
+  CURP
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  phone     String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  driver        Driver?
+  ridesAsUser   Ride[]   @relation("UserRides")
+  ratings       Rating[] @relation("UserRatings")
+}
+
+model Driver {
+  id        String  @id @default(cuid())
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Personal
+  curp      String
+  phone     String
+
+  // Vehicle
+  carModel  String
+  plate     String
+
+  // Status
+  onboarded Boolean @default(false)
+  online    Boolean @default(false)
+  lat       Float   @default(0)
+  lng       Float   @default(0)
+  battery   Int     @default(100)
+
+  // Stats
+  rating    Float   @default(5.0)
+  earnings  Float   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  documents     Document[]
+  ridesAsDriver Ride[]     @relation("DriverRides")
+  ratingsReceived Rating[] @relation("DriverRatings")
+}
+
+model Document {
+  id         String       @id @default(cuid())
+  driverId   String
+  driver     Driver       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type       DocumentType
+  folio      String
+  verified   Boolean      @default(false)
+  createdAt  DateTime     @default(now())
+
+  @@unique([driverId, type])
+}
+
+model Ride {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation("UserRides", fields: [userId], references: [id])
+  driverId  String?
+  driver    Driver?    @relation("DriverRides", fields: [driverId], references: [id])
+
+  status    RideStatus @default(REQUESTED)
+  service   String     @default("ride") // ride, food, market, pack
+  tier      String     @default("economy") // economy, comfort, xl
+  pet       Boolean    @default(false)
+  promo     String?
+  payment   String     @default("card")
+
+  // Origin
+  fromLat   Float
+  fromLng   Float
+  fromLabel String
+
+  // Destination
+  toLat     Float
+  toLng     Float
+  toLabel   String
+
+  // Route
+  distanceKm Float?
+  durationMin Float?
+  price       Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rating    Rating?
+}
+
+model Rating {
+  id        String @id @default(cuid())
+  rideId    String @unique
+  ride      Ride   @relation(fields: [rideId], references: [id])
+  userId    String
+  user      User   @relation("UserRatings", fields: [userId], references: [id])
+  driverId  String
+  driver    Driver @relation("DriverRatings", fields: [driverId], references: [id])
+  stars     Int
+  tip       Float  @default(0)
+  comment   String?
+  createdAt DateTime @default(now())
+}
+
+model Vehicle {
+  id        String  @id @default(cuid())
+  unitId    String  @unique // ECO-99
+  name      String
+  car       String
+  plate     String
+  battery   Int     @default(100)
+  status    String  @default("ok") // ok, low, bad
+  lat       Float
+  lng       Float
+  locked    Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
